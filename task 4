@@ -1,0 +1,47 @@
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+# Sample user-item rating matrix (users rating movies from 1 to 5)
+data = {
+    'User': ['Alice', 'Alice', 'Alice', 'Bob', 'Bob', 'Carol', 'Carol', 'Dave', 'Dave'],
+    'Movie': ['Inception', 'Titanic', 'Avatar', 'Inception', 'Titanic', 'Avatar', 'Inception', 'Titanic', 'Interstellar'],
+    'Rating': [5, 3, 4, 5, 2, 5, 4, 1, 4]
+}
+
+df = pd.DataFrame(data)
+
+# Create user-movie matrix
+user_movie_matrix = df.pivot_table(index='User', columns='Movie', values='Rating').fillna(0)
+
+# Compute user similarity matrix
+user_similarity = cosine_similarity(user_movie_matrix)
+user_similarity_df = pd.DataFrame(user_similarity, index=user_movie_matrix.index, columns=user_movie_matrix.index)
+
+# Function to recommend movies to a user
+def recommend_movies(user_name, top_n=2):
+    if user_name not in user_movie_matrix.index:
+        return f"User '{user_name}' not found."
+
+    # Find similar users
+    similar_users = user_similarity_df[user_name].sort_values(ascending=False)[1:]
+
+    # Weighted sum of ratings from similar users
+    weighted_scores = np.dot(similar_users.values, user_movie_matrix.loc[similar_users.index])
+    similarity_sum = similar_users.sum()
+
+    # Average by similarity sum to normalize
+    scores = weighted_scores / similarity_sum
+
+    # Convert to Series and sort
+    scores_series = pd.Series(scores, index=user_movie_matrix.columns)
+
+    # Filter out movies the user has already rated
+    already_rated = user_movie_matrix.loc[user_name][user_movie_matrix.loc[user_name] > 0].index
+    recommended = scores_series.drop(already_rated).sort_values(ascending=False).head(top_n)
+
+    return recommended
+
+# Example usage
+print("\nRecommendations for Alice:")
+print(recommend_movies('Alice'))
